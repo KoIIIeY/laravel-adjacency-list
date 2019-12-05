@@ -20,6 +20,10 @@ trait HasRecursiveRelationships
 {
     use QueriesExpressions;
 
+    public function getPrimaryTreeKeyName(){
+        return 'id';
+    }
+
     /**
      * Get the name of the parent key column.
      *
@@ -91,7 +95,7 @@ trait HasRecursiveRelationships
             (new static)->newQuery(),
             $this,
             $this->getQualifiedParentKeyName(),
-            $this->getKeyName(),
+            $this->getPrimaryTreeKeyName(),
             false
         );
     }
@@ -107,7 +111,7 @@ trait HasRecursiveRelationships
             (new static)->newQuery(),
             $this,
             $this->getQualifiedParentKeyName(),
-            $this->getKeyName(),
+            $this->getPrimaryTreeKeyName(),
             true
         );
     }
@@ -158,7 +162,7 @@ trait HasRecursiveRelationships
             (new static)->newQuery(),
             $this,
             $this->getQualifiedParentKeyName(),
-            $this->getKeyName(),
+            $this->getPrimaryTreeKeyName(),
             false
         );
     }
@@ -174,7 +178,7 @@ trait HasRecursiveRelationships
             (new static)->newQuery(),
             $this,
             $this->getQualifiedParentKeyName(),
-            $this->getKeyName(),
+            $this->getPrimaryTreeKeyName(),
             true
         );
     }
@@ -288,7 +292,7 @@ trait HasRecursiveRelationships
             ->select($this->getParentKeyName())
             ->hasParent();
 
-        return $query->whereIn($this->getKeyName(), $keys);
+        return $query->whereIn($this->getPrimaryTreeKeyName(), $keys);
     }
 
     /**
@@ -314,7 +318,7 @@ trait HasRecursiveRelationships
             ->select($this->getParentKeyName())
             ->hasParent();
 
-        return $query->whereNotIn($this->getKeyName(), $keys);
+        return $query->whereNotIn($this->getPrimaryTreeKeyName(), $keys);
     }
 
     /**
@@ -379,7 +383,7 @@ trait HasRecursiveRelationships
     {
         $from = $from ?: $this->getTable();
 
-        $grammar = $this->getExpressionGrammar($query);
+        $grammar = $query->getConnection()->withTablePrefix($this->getExpressionGrammar($query));
 
         $expression = $this->getInitialQuery($grammar, $constraint, $initialDepth, $from)
             ->unionAll(
@@ -394,7 +398,7 @@ trait HasRecursiveRelationships
     }
 
     /**
-     * Get the initial query for a relationship expression.
+     * Get the initial query for relationship expression.
      *
      * @param \Staudenmeir\LaravelAdjacencyList\Query\Grammars\ExpressionGrammar|\Illuminate\Database\Grammar $grammar
      * @param callable $constraint
@@ -407,7 +411,7 @@ trait HasRecursiveRelationships
         $depth = $grammar->wrap($this->getDepthName());
 
         $initialPath = $grammar->compileInitialPath(
-            $this->getKeyName(),
+            $this->getPrimaryTreeKeyName(),
             $this->getPathName()
         );
 
@@ -423,7 +427,7 @@ trait HasRecursiveRelationships
     }
 
     /**
-     * Get the recursive query for a relationship expression.
+     * Get the recursive query for relationship expression.
      *
      * @param \Staudenmeir\LaravelAdjacencyList\Query\Grammars\ExpressionGrammar|\Illuminate\Database\Grammar $grammar
      * @param string $direction
@@ -436,9 +440,8 @@ trait HasRecursiveRelationships
 
         $table = explode(' as ', $from)[1] ?? $from;
 
-        $depth = $grammar->wrap($this->getDepthName());
-
-        $recursiveDepth = $grammar->wrap($this->getDepthName()).' '.($direction === 'asc' ? '-' : '+').' 1';
+        $recursiveDepth = $grammar->wrap($name.'.'.$this->getDepthName())
+            .' '.($direction === 'asc' ? '-' : '+').' 1';
 
         $recursivePath = $grammar->compileRecursivePath(
             $this->getQualifiedKeyName(),
@@ -448,7 +451,7 @@ trait HasRecursiveRelationships
 
         $query = $this->newModelQuery()
             ->select($table.'.*')
-            ->selectRaw($recursiveDepth.' as '.$depth)
+            ->selectRaw($recursiveDepth)
             ->selectRaw($recursivePath)
             ->from($from);
 
@@ -456,7 +459,7 @@ trait HasRecursiveRelationships
             $first = $this->getParentKeyName();
             $second = $this->getQualifiedKeyName();
         } else {
-            $first = $this->getKeyName();
+            $first = $this->getPrimaryTreeKeyName();
             $second = $this->qualifyColumn($this->getParentKeyName());
         }
 
@@ -477,13 +480,13 @@ trait HasRecursiveRelationships
 
         switch ($driver) {
             case 'mysql':
-                return $query->getConnection()->withTablePrefix(new MySqlGrammar);
+                return new MySqlGrammar;
             case 'pgsql':
-                return $query->getConnection()->withTablePrefix(new PostgresGrammar);
+                return new PostgresGrammar;
             case 'sqlite':
-                return $query->getConnection()->withTablePrefix(new SQLiteGrammar);
+                return new SQLiteGrammar;
             case 'sqlsrv':
-                return $query->getConnection()->withTablePrefix(new SqlServerGrammar);
+                return new SqlServerGrammar;
         }
 
         throw new RuntimeException('This database is not supported.'); // @codeCoverageIgnore
