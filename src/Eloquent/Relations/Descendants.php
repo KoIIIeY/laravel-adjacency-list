@@ -48,6 +48,7 @@ class Descendants extends HasMany
 
         $keys = $this->getKeys($models, $this->localKey);
 
+
         $constraint = function (Builder $query) use ($models, $whereIn, $column, $keys) {
             $query->$whereIn($column, $keys);
         };
@@ -95,14 +96,22 @@ class Descendants extends HasMany
         $dictionary = $results->getDictionary();
 
         $foreignKey = $this->getForeignKeyName();
+        $primaryTreeKey = $this->localKey;
 
-        return $results->mapToDictionary(function (Model $result) use ($dictionary, $foreignKey) {
+        return $results->mapToDictionary(function (Model $result) use ($dictionary, $foreignKey, $primaryTreeKey) {
             if ($result->hasNestedPath()) {
-                $key = $dictionary[$result->getFirstPathSegment()]->{$foreignKey};
+//                dd($dictionary, $result->getFirstPathSegment(), $foreignKey, $result);
+                $one = collect($dictionary)->filter(function($value, $key) use ($result, $foreignKey, $primaryTreeKey){
+//                    dd($value);
+                    return $value->{$primaryTreeKey} == $result->getFirstPathSegment();
+                });
+//                dd($one);
+                $key = $one->first()->{$foreignKey};
+//                $key = $dictionary[$result->getFirstPathSegment()]->{$foreignKey};
             } else {
                 $key = $result->{$foreignKey};
             }
-
+//            dd($key, $result);
             return [$key => $result];
         })->all();
     }
